@@ -13,5 +13,6 @@ def main_menu(is_admin: bool):
 
     return ReplyKeyboardMarkup(
         buttons,
-        resize_keyboard=True
+        resize_keyboard=True,
+        one_time_keyboard=False
     )
