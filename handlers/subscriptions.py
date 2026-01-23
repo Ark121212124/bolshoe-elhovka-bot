@@ -28,6 +28,9 @@ def save(data):
 
 
 async def subscriptions_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    context.user_data["subs_mode"] = True
+
     await update.message.reply_text(
         "🔔 *Оповещения*\n\nВыберите действие:",
         parse_mode="Markdown",
@@ -36,9 +39,16 @@ async def subscriptions_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def subscriptions_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("subs_mode"):
+        return False
+
     text = update.message.text
     subs = load()
     uid = update.effective_user.id
+
+    if text == "🔙 Назад":
+        context.user_data.clear()
+        return False
 
     if text == "🔔 Подписаться":
         if uid not in subs:
@@ -54,4 +64,4 @@ async def subscriptions_text_handler(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text("❌ Вы отписались от новостей")
         return True
 
-    return False
+    return True
