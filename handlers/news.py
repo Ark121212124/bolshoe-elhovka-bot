@@ -1,7 +1,7 @@
 import json
 from telegram import Update
 from telegram.ext import ContextTypes
-from config import ADMIN_CHAT_ID
+from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
 
 FILE = "storage/news.json"
 
@@ -19,111 +19,113 @@ def save_news(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ─────────────────────────
-# 📰 ПРОСМОТР НОВОСТЕЙ
-# ─────────────────────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     news = load_news()
-
     if not news:
-        await update.message.reply_text(
-            "📰 *Новости поселения*\n\nПока новостей нет.",
-            parse_mode="Markdown"
-        )
+        await update.message.reply_text("📰 *Новости поселения*\n\nПока новостей нет.", parse_mode="Markdown")
         return
 
-    for item in reversed(news):
-        text = f"*{item['title']}*\n\n{item['text']}"
-        if item.get("link"):
-            text += f"\n\n🔗 {item['link']}"
+    for n in news:
+        text = f"*{n['title']}*\n\n{n['text']}"
+        if n.get("link"):
+            text += f"\n\n🔗 {n['link']}"
 
-        if item.get("photo"):
-            await update.message.reply_photo(
-                item["photo"],
-                caption=text,
-                parse_mode="Markdown"
-            )
+        if n.get("photo"):
+            await update.message.reply_photo(n["photo"], caption=text, parse_mode="Markdown")
         else:
             await update.message.reply_text(text, parse_mode="Markdown")
 
 
-# ─────────────────────────
-# ➕ ДОБАВЛЕНИЕ НОВОСТИ
-# ─────────────────────────
+# ─────────────────────────────
+# 📰 ДОБАВЛЕНИЕ НОВОСТИ (ШАГИ)
+# ─────────────────────────────
+
 async def news_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_CHAT_ID:
-        return False
-
-    step = context.user_data.get("news_step")
-    if not step:
-        return False
-
     text = update.message.text
+    step = context.user_data.get("news_step")
 
+    # ─── ВВОД ДАННЫХ ───
     if step == "title":
         context.user_data["news_title"] = text
         context.user_data["news_step"] = "text"
-        await update.message.reply_text("📝 Введите описание новости:")
+        await update.message.reply_text("📄 Введите *описание новости*:", parse_mode="Markdown")
         return True
 
     if step == "text":
         context.user_data["news_text"] = text
         context.user_data["news_step"] = "photo"
-        await update.message.reply_text("🖼 Отправьте фото или `-`")
+        await update.message.reply_text("🖼 Отправьте *фото* или `-`", parse_mode="Markdown")
         return True
 
     if step == "photo":
-        if text == "-":
-            context.user_data["news_photo"] = None
-            context.user_data["news_step"] = "link"
-            await update.message.reply_text("🔗 Введите ссылку или `-`")
-            return True
-        return False
+        if update.message.photo:
+            context.user_data["news_photo"] = update.message.photo[-1].file_id
+        context.user_data["news_step"] = "link"
+        await update.message.reply_text("🔗 Введите *ссылку* или `-`", parse_mode="Markdown")
+        return True
 
     if step == "link":
         context.user_data["news_link"] = None if text == "-" else text
-        context.user_data["news_step"] = "confirm"
+        context.user_data["news_step"] = "actions"
 
-        preview = f"*{context.user_data['news_title']}*\n\n{context.user_data['news_text']}"
-        if context.user_data["news_link"]:
+        preview = f"📰 *Предпросмотр новости*\n\n"
+        preview += f"*{context.user_data['news_title']}*\n\n{context.user_data['news_text']}"
+        if context.user_data.get("news_link"):
             preview += f"\n\n🔗 {context.user_data['news_link']}"
 
-        await update.message.reply_text(
-            preview + "\n\nНапишите `опубликовать` или `отмена`",
-            parse_mode="Markdown"
-        )
+        if context.user_data.get("news_photo"):
+            await update.message.reply_photo(
+                context.user_data["news_photo"],
+                caption=preview,
+                parse_mode="Markdown",
+                reply_markup=NEWS_ACTIONS_KB
+            )
+        else:
+            await update.message.reply_text(preview, parse_mode="Markdown", reply_markup=NEWS_ACTIONS_KB)
         return True
 
-    if step == "confirm":
-        if text.lower() == "отмена":
-            context.user_data.clear()
-            await update.message.reply_text("❌ Добавление отменено")
-            return True
+    # ─── УПРАВЛЕНИЕ ───
+    if text == "✅ Опубликовать":
+        news = load_news()
+        news.append({
+            "title": context.user_data["news_title"],
+            "text": context.user_data["news_text"],
+            "photo": context.user_data.get("news_photo"),
+            "link": context.user_data.get("news_link"),
+        })
+        save_news(news)
+        context.user_data.clear()
+        await update.message.reply_text("✅ Новость опубликована")
+        return True
 
-        if text.lower() == "опубликовать":
-            news = load_news()
-            news.append({
-                "title": context.user_data["news_title"],
-                "text": context.user_data["news_text"],
-                "photo": context.user_data.get("news_photo"),
-                "link": context.user_data.get("news_link"),
-            })
-            save_news(news)
+    if text == "❌ Отмена":
+        context.user_data.clear()
+        await update.message.reply_text("❌ Добавление новости отменено")
+        return True
 
-            context.user_data.clear()
-            await update.message.reply_text("✅ Новость опубликована")
-            return True
+    if text == "✏ Редактировать":
+        await update.message.reply_text("✏ *Что редактировать?*", parse_mode="Markdown", reply_markup=NEWS_EDIT_KB)
+        return True
 
-    return False
+    # ─── РЕДАКТИРОВАНИЕ ───
+    if text == "📝 Заголовок":
+        context.user_data["news_step"] = "title"
+        await update.message.reply_text("📝 Введите новый заголовок:")
+        return True
 
+    if text == "📄 Описание":
+        context.user_data["news_step"] = "text"
+        await update.message.reply_text("📄 Введите новое описание:")
+        return True
 
-# ─────────────────────────
-# 🖼 ФОТО
-# ─────────────────────────
-async def news_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("news_step") == "photo":
-        context.user_data["news_photo"] = update.message.photo[-1].file_id
+    if text == "🖼 Фото":
+        context.user_data["news_step"] = "photo"
+        await update.message.reply_text("🖼 Отправьте новое фото или `-`")
+        return True
+
+    if text == "🔗 Ссылку":
         context.user_data["news_step"] = "link"
-        await update.message.reply_text("🔗 Введите ссылку или `-`")
+        await update.message.reply_text("🔗 Введите новую ссылку или `-`")
         return True
+
     return False
