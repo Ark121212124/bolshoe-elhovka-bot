@@ -2,20 +2,44 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers.news import show_news
-from handlers.contacts import show_contacts
-from handlers.appeals import start_appeal
-from handlers.subscriptions import subscriptions_menu
+from handlers.contacts import show_contacts, contacts_text_handler
+from handlers.appeals import start_appeal, appeals_text_handler
+from handlers.subscriptions import subscriptions_menu, subscriptions_text_handler
+from keyboards.main import main_menu
+from config import ADMIN_CHAT_ID
 
 
 async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    user_id = update.effective_user.id
+    is_admin = user_id == ADMIN_CHAT_ID
 
+    # ─────────────────────────
+    # 🔁 ВЛОЖЕННЫЕ ОБРАБОТЧИКИ
+    # ─────────────────────────
+    # если пользователь сейчас внутри контактов
+    if await contacts_text_handler(update, context):
+        return
+
+    # если пользователь пишет обращение
+    if await appeals_text_handler(update, context):
+        return
+
+    # если пользователь управляет подпиской
+    if await subscriptions_text_handler(update, context):
+        return
+
+    # ─────────────────────────
+    # 📋 ГЛАВНОЕ МЕНЮ
+    # ─────────────────────────
     if text == "📰 Новости":
         await show_news(update, context)
         return
 
-    if text == "➕ Добавить новость":
-        await update.message.reply_text("➕ Функция добавления новости (админ)")
+    if text == "➕ Добавить новость" and is_admin:
+        await update.message.reply_text(
+            "➕ Добавление новости (будет реализовано)"
+        )
         return
 
     if text == "📞 Контакты":
@@ -30,5 +54,18 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await subscriptions_menu(update, context)
         return
 
-    # если пользователь написал что-то вручную
-    await update.message.reply_text("Пожалуйста, выберите пункт меню 👇")
+    if text == "🔙 Назад":
+        await update.message.reply_text(
+            "🏛 *Главное меню*",
+            parse_mode="Markdown",
+            reply_markup=main_menu(is_admin)
+        )
+        return
+
+    # ─────────────────────────
+    # ❓ НЕИЗВЕСТНЫЙ ТЕКСТ
+    # ─────────────────────────
+    await update.message.reply_text(
+        "Пожалуйста, выберите пункт меню 👇",
+        reply_markup=main_menu(is_admin)
+    )
