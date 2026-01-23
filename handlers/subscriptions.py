@@ -1,9 +1,17 @@
 import json
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-from keyboards.subscriptions import SUB_KB
 
 FILE = "storage/subscribers.json"
+
+SUB_MENU = ReplyKeyboardMarkup(
+    [
+        ["🔔 Подписаться"],
+        ["🔕 Отписаться"],
+        ["🔙 Назад"],
+    ],
+    resize_keyboard=True
+)
 
 
 def load():
@@ -19,29 +27,31 @@ def save(data):
         json.dump(data, f)
 
 
-async def subscriptions_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+async def subscriptions_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🔔 *Оповещения*\n\nВыберите действие:",
+        parse_mode="Markdown",
+        reply_markup=SUB_MENU
+    )
 
+
+async def subscriptions_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
     subs = load()
-    uid = query.from_user.id
+    uid = update.effective_user.id
 
-    if query.data == "sub_on":
+    if text == "🔔 Подписаться":
         if uid not in subs:
             subs.append(uid)
             save(subs)
-        text = "🔔 Вы подписались на новости"
+        await update.message.reply_text("✅ Вы подписались на новости")
+        return True
 
-    elif query.data == "sub_off":
+    if text == "🔕 Отписаться":
         if uid in subs:
             subs.remove(uid)
             save(subs)
-        text = "🔕 Вы отписались от новостей"
+        await update.message.reply_text("❌ Вы отписались от новостей")
+        return True
 
-    else:
-        text = "🔔 Управление подпиской"
-
-    await query.message.edit_text(
-        text,
-        reply_markup=SUB_KB
-    )
+    return False
