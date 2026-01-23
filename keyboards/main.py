@@ -1,14 +1,17 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import ReplyKeyboardMarkup
 
 def main_menu(is_admin: bool):
     buttons = [
-        [InlineKeyboardButton("📰 Новости", callback_data="menu_news")],
-        [InlineKeyboardButton("📞 Контакты", callback_data="menu_contacts")],
-        [InlineKeyboardButton("✉ Обратная связь", callback_data="menu_appeal")],
-        [InlineKeyboardButton("🔔 Оповещения", callback_data="menu_subs")],
+        ["📰 Новости"],
+        ["📞 Контакты"],
+        ["✉ Обратная связь"],
+        ["🔔 Оповещения"],
     ]
 
     if is_admin:
-        buttons.insert(1, [InlineKeyboardButton("➕ Добавить новость", callback_data="menu_add_news")])
+        buttons.insert(1, ["➕ Добавить новость"])
 
-    return InlineKeyboardMarkup(buttons)
+    return ReplyKeyboardMarkup(
+        buttons,
+        resize_keyboard=True
+    )
