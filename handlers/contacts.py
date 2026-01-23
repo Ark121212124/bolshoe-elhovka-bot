@@ -16,6 +16,10 @@ CONTACTS_MENU = ReplyKeyboardMarkup(
 
 
 async def show_contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # 🔥 ВКЛЮЧАЕМ РЕЖИМ КОНТАКТОВ
+    context.user_data.clear()
+    context.user_data["contacts_mode"] = True
+
     await update.message.reply_text(
         "📞 *Контакты организаций*\n\nВыберите организацию:",
         parse_mode="Markdown",
@@ -24,6 +28,9 @@ async def show_contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def contacts_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get("contacts_mode"):
+        return False
+
     text = update.message.text
 
     data = {
@@ -58,6 +65,10 @@ async def contacts_text_handler(update: Update, context: ContextTypes.DEFAULT_TY
             "🕘 Пн–Пт: 09:00–18:00"
         ),
     }
+
+    if text == "🔙 Назад":
+        context.user_data.clear()
+        return False  # вернём управление меню
 
     if text in data:
         await update.message.reply_text(
