@@ -15,19 +15,19 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = user_id == ADMIN_CHAT_ID
 
     # ─────────────────────────
-    # 🔁 ВЛОЖЕННЫЕ ОБРАБОТЧИКИ
+    # 🔁 ВЛОЖЕННЫЕ ДИАЛОГИ
     # ─────────────────────────
-    # если пользователь сейчас внутри контактов
-    if await contacts_text_handler(update, context):
-        return
+    if context.user_data.get("contacts_mode"):
+        if await contacts_text_handler(update, context):
+            return
 
-    # если пользователь пишет обращение
-    if await appeals_text_handler(update, context):
-        return
+    if context.user_data.get("appeal_mode"):
+        if await appeals_text_handler(update, context):
+            return
 
-    # если пользователь управляет подпиской
-    if await subscriptions_text_handler(update, context):
-        return
+    if context.user_data.get("subs_mode"):
+        if await subscriptions_text_handler(update, context):
+            return
 
     # ─────────────────────────
     # 📋 ГЛАВНОЕ МЕНЮ
@@ -55,6 +55,7 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "🔙 Назад":
+        context.user_data.clear()
         await update.message.reply_text(
             "🏛 *Главное меню*",
             parse_mode="Markdown",
