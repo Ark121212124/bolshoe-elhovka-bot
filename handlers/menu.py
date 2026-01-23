@@ -1,18 +1,26 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from keyboards.main import main_menu
-from config import ADMIN_CHAT_ID
 
+async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
 
-async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if text == "📰 Новости":
+        await update.message.reply_text("📰 Загружаю новости…")
+        # тут потом вызовешь показ новостей
+        return
 
-    is_admin = query.from_user.id == ADMIN_CHAT_ID
+    if text == "➕ Добавить новость":
+        await update.message.reply_text("➕ Добавление новости")
+        return
 
-    if query.data == "menu_main":
-        await query.message.edit_text(
-            "🏛 *Главное меню*",
-            parse_mode="Markdown",
-            reply_markup=main_menu(is_admin)
-        )
+    if text == "📞 Контакты":
+        await update.message.reply_text("📞 Контакты организаций")
+        return
+
+    if text == "✉ Обратная связь":
+        await update.message.reply_text("✉ Напишите ваше обращение")
+        return
+
+    if text == "🔔 Оповещения":
+        await update.message.reply_text("🔔 Управление оповещениями")
+        return
