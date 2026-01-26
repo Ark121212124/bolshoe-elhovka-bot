@@ -13,14 +13,10 @@ from handlers.menu import text_menu_handler
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # /start
     app.add_handler(CommandHandler("start", start))
 
-    # 🔥 ОДИН обработчик на ВСЁ:
-    # текст, фото, ссылки, шаги новостей, обращения и т.д.
-    app.add_handler(
-        MessageHandler(filters.ALL & ~filters.COMMAND, text_menu_handler)
-    )
+    # ОДИН обработчик на ВСЁ
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, text_menu_handler))
 
     print("🚀 Бот запущен")
     app.run_polling()
