@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from handlers.news import show_news, news_text_handler
+from handlers.news import show_news, handle_news_flow
 from handlers.contacts import show_contacts, contacts_text_handler
 from handlers.appeals import start_appeal, appeals_text_handler
 from handlers.subscriptions import subscriptions_menu, subscriptions_text_handler
@@ -10,11 +10,12 @@ from config import ADMIN_CHAT_ID
 
 
 async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
     user_id = update.effective_user.id
     is_admin = user_id == ADMIN_CHAT_ID
+    text = update.message.text if update.message else ""
 
-    if await news_text_handler(update, context):
+    # 🔴 ВСЕГДА СНАЧАЛА НОВОСТИ
+    if await handle_news_flow(update, context):
         return
 
     if await appeals_text_handler(update, context):
@@ -26,6 +27,7 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await subscriptions_text_handler(update, context):
         return
 
+    # ───── МЕНЮ ─────
     if text == "📰 Новости":
         await show_news(update, context)
         return
