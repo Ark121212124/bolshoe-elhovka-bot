@@ -16,7 +16,8 @@ def main():
     # /start
     app.add_handler(CommandHandler("start", start))
 
-    # ⬇️ ОДИН обработчик: текст + фото + всё остальное
+    # 🔥 ОДИН обработчик на ВСЁ:
+    # текст, фото, ссылки, шаги новостей, обращения и т.д.
     app.add_handler(
         MessageHandler(filters.ALL & ~filters.COMMAND, text_menu_handler)
     )
