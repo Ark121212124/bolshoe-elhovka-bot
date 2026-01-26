@@ -124,8 +124,8 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        f"📰 *Предпросмотр*\n\n"
-        f"*{context.user_data.get('title')}*\n\n"
+        f"📰 Предпросмотр\n\n"
+        f"{context.user_data.get('title')}\n\n"
         f"{context.user_data.get('text')}"
     )
 
@@ -136,12 +136,10 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_photo(
             context.user_data["photo"],
             caption=text,
-            parse_mode="Markdown",
             reply_markup=NEWS_ACTIONS_KB
         )
     else:
         await update.message.reply_text(
             text,
-            parse_mode="Markdown",
             reply_markup=NEWS_ACTIONS_KB
         )
