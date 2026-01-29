@@ -1,8 +1,6 @@
-import json
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-
-FILE = "storage/subscribers.json"
+from utils.db import get_conn
 
 SUB_MENU = ReplyKeyboardMarkup(
     [
@@ -12,19 +10,6 @@ SUB_MENU = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
-
-
-def load():
-    try:
-        with open(FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
-
-
-def save(data):
-    with open(FILE, "w") as f:
-        json.dump(data, f)
 
 
 async def subscriptions_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,25 +28,29 @@ async def subscriptions_text_handler(update: Update, context: ContextTypes.DEFAU
         return False
 
     text = update.message.text
-    subs = load()
     uid = update.effective_user.id
+
+    conn = get_conn()
+    cur = conn.cursor()
 
     if text == "🔙 Назад":
         context.user_data.clear()
+        conn.close()
         return False
 
     if text == "🔔 Подписаться":
-        if uid not in subs:
-            subs.append(uid)
-            save(subs)
+        cur.execute("INSERT OR IGNORE INTO subscribers VALUES (?)", (uid,))
+        conn.commit()
         await update.message.reply_text("✅ Вы подписались на новости")
+        conn.close()
         return True
 
     if text == "🔕 Отписаться":
-        if uid in subs:
-            subs.remove(uid)
-            save(subs)
+        cur.execute("DELETE FROM subscribers WHERE id=?", (uid,))
+        conn.commit()
         await update.message.reply_text("❌ Вы отписались от новостей")
+        conn.close()
         return True
 
+    conn.close()
     return True
