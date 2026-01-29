@@ -1,5 +1,6 @@
 from telegram import ReplyKeyboardMarkup
 
+
 NEWS_ACTIONS_KB = ReplyKeyboardMarkup(
     [
         ["✅ Опубликовать"],
@@ -17,6 +18,16 @@ NEWS_EDIT_KB = ReplyKeyboardMarkup(
         ["🖼 Фото"],
         ["🔗 Ссылку"],
         ["🔙 Назад"],
+    ],
+    resize_keyboard=True
+)
+
+NEWS_ADMIN_KB = ReplyKeyboardMarkup(
+    [
+        ["✏ Редактировать новость"],
+        ["🗑 Удалить новость"],
+        ["📨 Разослать новость"],
+        ["🔙 В меню"],
     ],
     resize_keyboard=True
 )
