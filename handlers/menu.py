@@ -5,7 +5,10 @@ from handlers.news import show_news, handle_news_flow
 from handlers.contacts import show_contacts, contacts_text_handler
 from handlers.appeals import start_appeal, appeals_text_handler
 from handlers.subscriptions import subscriptions_menu, subscriptions_text_handler
+
 from keyboards.main import main_menu
+from keyboards.news import NEWS_ADMIN_KB
+
 from config import ADMIN_CHAT_ID
 
 
@@ -14,7 +17,7 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = user_id == ADMIN_CHAT_ID
     text = update.message.text if update.message else ""
 
-    # 🔴 ВСЕГДА СНАЧАЛА НОВОСТИ
+    # ───── ВСЕГДА СНАЧАЛА ДИАЛОГИ ─────
     if await handle_news_flow(update, context):
         return
 
@@ -27,16 +30,20 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await subscriptions_text_handler(update, context):
         return
 
-    # ───── МЕНЮ ─────
+    # ───── ГЛАВНОЕ МЕНЮ ─────
+
     if text == "📰 Новости":
         await show_news(update, context)
         return
-        
-if text == "🛠 Управление новостями" and is_admin:
-    from keyboards.news import NEWS_ADMIN_KB
-    await update.message.reply_text("Управление новостями:", reply_markup=NEWS_ADMIN_KB)
-    return
-    
+
+    # АДМИН ПАНЕЛЬ
+    if text == "🛠 Управление новостями" and is_admin:
+        await update.message.reply_text(
+            "Управление новостями:",
+            reply_markup=NEWS_ADMIN_KB
+        )
+        return
+
     if text == "➕ Добавить новость" and is_admin:
         context.user_data.clear()
         context.user_data["news_step"] = "title"
@@ -63,8 +70,8 @@ if text == "🛠 Управление новостями" and is_admin:
         )
         return
 
+    # ЕСЛИ НАПИСАЛИ ЧТО-ТО ЛЕВОЕ
     await update.message.reply_text(
         "Пожалуйста, выберите пункт меню 👇",
         reply_markup=main_menu(is_admin)
     )
-
