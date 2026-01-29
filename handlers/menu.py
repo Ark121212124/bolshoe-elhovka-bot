@@ -31,7 +31,12 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "📰 Новости":
         await show_news(update, context)
         return
-
+        
+if text == "🛠 Управление новостями" and is_admin:
+    from keyboards.news import NEWS_ADMIN_KB
+    await update.message.reply_text("Управление новостями:", reply_markup=NEWS_ADMIN_KB)
+    return
+    
     if text == "➕ Добавить новость" and is_admin:
         context.user_data.clear()
         context.user_data["news_step"] = "title"
@@ -62,3 +67,4 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Пожалуйста, выберите пункт меню 👇",
         reply_markup=main_menu(is_admin)
     )
+
