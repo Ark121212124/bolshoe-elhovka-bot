@@ -8,14 +8,14 @@ FILE = "storage/news.json"
 SUB_FILE = "storage/subscribers.json"
 
 
-# ─────────────────────────
-# ФАЙЛЫ
-# ─────────────────────────
-
+# ───────────── ФАЙЛЫ ─────────────
 def load_news():
     try:
         with open(FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+            return []   # если вдруг объект — очищаем
     except:
         return []
 
@@ -39,10 +39,7 @@ def load_subs():
         return []
 
 
-# ─────────────────────────
-# ПОКАЗ НОВОСТЕЙ
-# ─────────────────────────
-
+# ───────────── ПОКАЗ НОВОСТЕЙ ─────────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     news = load_news()
     if not news:
@@ -60,33 +57,21 @@ async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text, parse_mode="Markdown")
 
 
-# ─────────────────────────
-# ПРЕДПРОСМОТР
-# ─────────────────────────
-
+# ───────────── ПРЕДПРОСМОТР ─────────────
 async def show_preview(update, context):
     msg = update.message
+    text = f"📰 Предпросмотр\n\n{context.user_data['title']}\n\n{context.user_data['text']}"
 
-    title = context.user_data.get("title", "")
-    text_news = context.user_data.get("text", "")
-    link = context.user_data.get("link")
-    photo = context.user_data.get("photo")
+    if context.user_data.get("link"):
+        text += f"\n\n🔗 {context.user_data['link']}"
 
-    caption = f"📰 Предпросмотр\n\n{title}\n\n{text_news}"
-
-    if link:
-        caption += f"\n\n🔗 {link}"
-
-    if photo:
-        await msg.reply_photo(photo, caption=caption, reply_markup=NEWS_ACTIONS_KB)
+    if context.user_data.get("photo"):
+        await msg.reply_photo(context.user_data["photo"], caption=text, reply_markup=NEWS_ACTIONS_KB)
     else:
-        await msg.reply_text(caption, reply_markup=NEWS_ACTIONS_KB)
+        await msg.reply_text(text, reply_markup=NEWS_ACTIONS_KB)
 
 
-# ─────────────────────────
-# РАССЫЛКА
-# ─────────────────────────
-
+# ───────────── РАССЫЛКА ─────────────
 async def broadcast_news(context, item):
     subs = load_subs()
     text = f"{item['title']}\n\n{item['text']}"
@@ -104,13 +89,13 @@ async def broadcast_news(context, item):
             pass
 
 
-# ─────────────────────────
-# ГЛАВНЫЙ FLOW
-# ─────────────────────────
-
+# ───────────── ГЛАВНЫЙ FLOW ─────────────
 async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    text = msg.text if msg.text else ""
+    if not msg:
+        return False
+
+    text = msg.text or ""
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
@@ -118,8 +103,8 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         item = {
             "id": next_id(news),
-            "title": context.user_data.get("title"),
-            "text": context.user_data.get("text"),
+            "title": context.user_data["title"],
+            "text": context.user_data["text"],
             "photo": context.user_data.get("photo"),
             "link": context.user_data.get("link"),
             "date": datetime.now().strftime("%Y-%m-%d")
@@ -127,48 +112,82 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         news.append(item)
         save_news(news)
-
         context.user_data.clear()
         await msg.reply_text("✅ Новость опубликована")
         return True
 
-    # ───── ОТМЕНА ─────
     if text == "❌ Отмена":
         context.user_data.clear()
         await msg.reply_text("❌ Отменено")
         return True
 
-    # ───── РЕДАКТИРОВАНИЕ ПОЛЕЙ ─────
-    if text == "✏ Редактировать":
-        await msg.reply_text("Что редактировать?", reply_markup=NEWS_EDIT_KB)
+    # ───── АДМИН МЕНЮ ─────
+    if text == "✏ Редактировать новость":
+        news = load_news()
+        if not news:
+            await msg.reply_text("Новостей нет")
+            return True
+
+        for n in news:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "edit_select"
         return True
 
-    if text == "📝 Заголовок":
-        context.user_data["news_step"] = "edit_title"
-        await msg.reply_text("Введите новый заголовок:")
+    if text == "🗑 Удалить новость":
+        news = load_news()
+        for n in news:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "delete_select"
         return True
 
-    if text == "📄 Описание":
-        context.user_data["news_step"] = "edit_text"
-        await msg.reply_text("Введите новое описание:")
+    if text == "📨 Разослать новость":
+        news = load_news()
+        for n in news:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "broadcast_select"
         return True
 
-    if text == "🖼 Фото":
-        context.user_data["news_step"] = "edit_photo"
-        await msg.reply_text("Отправьте новое фото или -")
-        return True
+    # ───── ВЫБОР ID ─────
+    if context.user_data.get("admin_mode"):
+        news = load_news()
 
-    if text == "🔗 Ссылку":
-        context.user_data["news_step"] = "edit_link"
-        await msg.reply_text("Введите новую ссылку или -")
-        return True
+        try:
+            nid = int(text)
+        except:
+            return True
 
-    # ───── ШАГИ ─────
+        item = next((n for n in news if n["id"] == nid), None)
+        if not item:
+            await msg.reply_text("Новость не найдена")
+            return True
+
+        mode = context.user_data["admin_mode"]
+
+        if mode == "delete_select":
+            news = [n for n in news if n["id"] != nid]
+            save_news(news)
+            await msg.reply_text("🗑 Удалено")
+            context.user_data.clear()
+            return True
+
+        if mode == "broadcast_select":
+            await broadcast_news(context, item)
+            await msg.reply_text("📨 Разослано")
+            context.user_data.clear()
+            return True
+
+        if mode == "edit_select":
+            context.user_data["edit_item"] = item
+            context.user_data["admin_mode"] = "editing"
+            await msg.reply_text("Что редактировать?", reply_markup=NEWS_EDIT_KB)
+            return True
+
+    # ───── СОЗДАНИЕ НОВОСТИ ─────
     step = context.user_data.get("news_step")
-    if not step:
-        return False
 
-    # СОЗДАНИЕ
     if step == "title":
         context.user_data["title"] = text
         context.user_data["news_step"] = "text"
@@ -184,46 +203,11 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == "photo":
         if msg.photo:
             context.user_data["photo"] = msg.photo[-1].file_id
-        else:
-            context.user_data["photo"] = None
-
         context.user_data["news_step"] = "link"
         await msg.reply_text("Введите ссылку или -")
         return True
 
     if step == "link":
-        context.user_data["link"] = None if text == "-" else text
-        context.user_data.pop("news_step", None)
-        await show_preview(update, context)
-        return True
-
-    # EDIT TITLE
-    if step == "edit_title":
-        context.user_data["title"] = text
-        context.user_data.pop("news_step", None)
-        await show_preview(update, context)
-        return True
-
-    # EDIT TEXT
-    if step == "edit_text":
-        context.user_data["text"] = text
-        context.user_data.pop("news_step", None)
-        await show_preview(update, context)
-        return True
-
-    # EDIT PHOTO
-    if step == "edit_photo":
-        if msg.photo:
-            context.user_data["photo"] = msg.photo[-1].file_id
-        else:
-            context.user_data["photo"] = None
-
-        context.user_data.pop("news_step", None)
-        await show_preview(update, context)
-        return True
-
-    # EDIT LINK
-    if step == "edit_link":
         context.user_data["link"] = None if text == "-" else text
         context.user_data.pop("news_step", None)
         await show_preview(update, context)
