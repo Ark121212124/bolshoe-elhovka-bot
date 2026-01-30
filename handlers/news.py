@@ -1,35 +1,32 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
+from keyboards.news import NEWS_ACTIONS_KB
 from keyboards.main import main_menu
 from config import ADMIN_CHAT_ID
 
-# ───────── ПАМЯТЬ ─────────
-NEWS = []
+NEWS = []  # ← Хранилище новостей в памяти
 
 
 # ───────── ПОКАЗ НОВОСТЕЙ ─────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-
     if not NEWS:
-        await msg.reply_text("📰 Пока новостей нет.")
+        await update.message.reply_text("📰 Пока новостей нет.")
         return
 
     for n in reversed(NEWS):
         text = f"*{n['title']}*\n\n{n['text']}"
 
-        if n.get("link"):
+        if n["link"]:
             text += f"\n\n🔗 {n['link']}"
 
-        if n.get("photo"):
-            await msg.reply_photo(
+        if n["photo"]:
+            await update.message.reply_photo(
                 n["photo"],
                 caption=text,
                 parse_mode="Markdown"
             )
         else:
-            await msg.reply_text(
+            await update.message.reply_text(
                 text,
                 parse_mode="Markdown"
             )
@@ -69,15 +66,22 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
-        item = {
-            "id": len(NEWS) + 1,
-            "title": context.user_data.get("title"),
-            "text": context.user_data.get("text"),
-            "photo": context.user_data.get("photo"),
-            "link": context.user_data.get("link"),
-        }
+        title = context.user_data.get("title")
+        text_news = context.user_data.get("text")
+        photo = context.user_data.get("photo")
+        link = context.user_data.get("link")
 
-        NEWS.append(item)
+        if not title or not text_news:
+            await msg.reply_text("Ошибка публикации")
+            return True
+
+        NEWS.append({
+            "title": title,
+            "text": text_news,
+            "photo": photo,
+            "link": link
+        })
+
         context.user_data.clear()
 
         await msg.reply_text(
@@ -91,68 +95,6 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await msg.reply_text(
             "❌ Отменено",
-            reply_markup=main_menu(is_admin)
-        )
-        return True
-
-    # ───── РЕДАКТИРОВАТЬ ─────
-    if text == "✏ Редактировать новость":
-        if not NEWS:
-            await msg.reply_text("Новостей нет")
-            return True
-
-        for n in NEWS:
-            await msg.reply_text(f"{n['id']}. {n['title']}")
-
-        context.user_data["admin_mode"] = "edit_select"
-        return True
-
-    # ───── УДАЛИТЬ ─────
-    if text == "🗑 Удалить новость":
-        if not NEWS:
-            await msg.reply_text("Новостей нет")
-            return True
-
-        for n in NEWS:
-            await msg.reply_text(f"{n['id']}. {n['title']}")
-
-        context.user_data["admin_mode"] = "delete_select"
-        return True
-
-    # ───── ВЫБОР ID ─────
-    if context.user_data.get("admin_mode"):
-        try:
-            nid = int(text)
-        except:
-            return True
-
-        item = next((x for x in NEWS if x["id"] == nid), None)
-        if not item:
-            await msg.reply_text("Новость не найдена")
-            return True
-
-        mode = context.user_data["admin_mode"]
-
-        if mode == "delete_select":
-            NEWS.remove(item)
-            context.user_data.clear()
-            await msg.reply_text("🗑 Удалено", reply_markup=main_menu(is_admin))
-            return True
-
-        if mode == "edit_select":
-            context.user_data["edit_item"] = item
-            context.user_data["admin_mode"] = "editing"
-            await msg.reply_text("Введите новый текст:")
-            return True
-
-    # ───── РЕДАКТИРОВАНИЕ ─────
-    if context.user_data.get("admin_mode") == "editing":
-        item = context.user_data["edit_item"]
-        item["text"] = text
-        context.user_data.clear()
-
-        await msg.reply_text(
-            "✏ Изменено",
             reply_markup=main_menu(is_admin)
         )
         return True
