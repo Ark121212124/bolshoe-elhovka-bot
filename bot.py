@@ -15,10 +15,10 @@ def main():
 
     app = Application.builder().token(TOKEN).build()
 
-    # /start
+    # ───── /start ─────
     app.add_handler(CommandHandler("start", start))
 
-    # ВСЕ сообщения кроме команд
+    # ───── ВСЕ СООБЩЕНИЯ ─────
     app.add_handler(
         MessageHandler(
             filters.ALL & ~filters.COMMAND,
