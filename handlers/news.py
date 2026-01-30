@@ -1,32 +1,40 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from keyboards.news import NEWS_ACTIONS_KB
+
+from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
 from keyboards.main import main_menu
 from config import ADMIN_CHAT_ID
 
-NEWS = []  # ← Хранилище новостей в памяти
+
+# ───────── ХРАНИЛИЩЕ В ПАМЯТИ ─────────
+NEWS_STORAGE = []   # список новостей
+NEWS_ID = 1          # авто-id
 
 
 # ───────── ПОКАЗ НОВОСТЕЙ ─────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not NEWS:
-        await update.message.reply_text("📰 Пока новостей нет.")
+    msg = update.message
+    if not msg:
         return
 
-    for n in reversed(NEWS):
+    if not NEWS_STORAGE:
+        await msg.reply_text("📰 Пока новостей нет.")
+        return
+
+    for n in reversed(NEWS_STORAGE):
         text = f"*{n['title']}*\n\n{n['text']}"
 
         if n["link"]:
             text += f"\n\n🔗 {n['link']}"
 
         if n["photo"]:
-            await update.message.reply_photo(
+            await msg.reply_photo(
                 n["photo"],
                 caption=text,
                 parse_mode="Markdown"
             )
         else:
-            await update.message.reply_text(
+            await msg.reply_text(
                 text,
                 parse_mode="Markdown"
             )
@@ -56,6 +64,8 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ───────── ГЛАВНЫЙ FLOW ─────────
 async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global NEWS_ID
+
     msg = update.message
     if not msg:
         return False
@@ -75,15 +85,17 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text("Ошибка публикации")
             return True
 
-        NEWS.append({
+        NEWS_STORAGE.append({
+            "id": NEWS_ID,
             "title": title,
             "text": text_news,
             "photo": photo,
             "link": link
         })
 
-        context.user_data.clear()
+        NEWS_ID += 1
 
+        context.user_data.clear()
         await msg.reply_text(
             "✅ Новость опубликована",
             reply_markup=main_menu(is_admin)
@@ -97,6 +109,38 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Отменено",
             reply_markup=main_menu(is_admin)
         )
+        return True
+
+    # ───── АДМИН: УДАЛИТЬ ─────
+    if text == "🗑 Удалить новость" and is_admin:
+        if not NEWS_STORAGE:
+            await msg.reply_text("Новостей нет")
+            return True
+
+        for n in NEWS_STORAGE:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "delete"
+        return True
+
+    # ───── ВЫБОР ID ─────
+    if context.user_data.get("admin_mode") == "delete":
+        try:
+            nid = int(text)
+        except:
+            return True
+
+        for n in NEWS_STORAGE:
+            if n["id"] == nid:
+                NEWS_STORAGE.remove(n)
+                context.user_data.clear()
+                await msg.reply_text(
+                    "🗑 Удалено",
+                    reply_markup=main_menu(is_admin)
+                )
+                return True
+
+        await msg.reply_text("Новость не найдена")
         return True
 
     # ───── СОЗДАНИЕ НОВОСТИ ─────
