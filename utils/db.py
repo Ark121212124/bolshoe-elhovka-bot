@@ -1,22 +1,20 @@
 import sqlite3
+import os
 from datetime import datetime
 
-DB = "bot.db"
+DB_PATH = "bot.db"
 
 
-# ───────── СОЕДИНЕНИЕ ─────────
 def get_conn():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row  # чтобы получать dict
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     return conn
 
 
-# ───────── ИНИЦИАЛИЗАЦИЯ ─────────
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
-    # НОВОСТИ
     cur.execute("""
         CREATE TABLE IF NOT EXISTS news (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +26,6 @@ def init_db():
         )
     """)
 
-    # ПОДПИСЧИКИ
     cur.execute("""
         CREATE TABLE IF NOT EXISTS subscribers (
             user_id INTEGER PRIMARY KEY
@@ -62,7 +59,7 @@ def db_get_news():
     rows = cur.fetchall()
     conn.close()
 
-    return [dict(r) for r in rows]
+    return rows
 
 
 def db_get_news_by_id(nid):
@@ -73,7 +70,7 @@ def db_get_news_by_id(nid):
     row = cur.fetchone()
     conn.close()
 
-    return dict(row) if row else None
+    return row
 
 
 def db_delete_news(nid):
@@ -102,20 +99,7 @@ def db_add_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        "INSERT OR IGNORE INTO subscribers (user_id) VALUES (?)",
-        (user_id,)
-    )
-
-    conn.commit()
-    conn.close()
-
-
-def db_remove_sub(user_id):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("DELETE FROM subscribers WHERE user_id = ?", (user_id,))
+    cur.execute("INSERT OR IGNORE INTO subscribers VALUES (?)", (user_id,))
     conn.commit()
     conn.close()
 
@@ -128,4 +112,4 @@ def db_get_subscribers():
     rows = cur.fetchall()
     conn.close()
 
-    return [r["user_id"] for r in rows]
+    return [r[0] for r in rows]
