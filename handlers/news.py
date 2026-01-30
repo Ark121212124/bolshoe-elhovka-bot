@@ -4,38 +4,32 @@ from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
 from keyboards.main import main_menu
 from config import ADMIN_CHAT_ID
 
-from utils.db import (
-    db_add_news,
-    db_get_news,
-    db_get_news_by_id,
-    db_delete_news,
-    db_update_news,
-    db_get_subscribers,
-)
+# ───────── ПАМЯТЬ ─────────
+NEWS = []
 
 
 # ───────── ПОКАЗ НОВОСТЕЙ ─────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rows = db_get_news()
+    msg = update.message
 
-    if not rows:
-        await update.message.reply_text("📰 Пока новостей нет.")
+    if not NEWS:
+        await msg.reply_text("📰 Пока новостей нет.")
         return
 
-    for n in rows:
+    for n in reversed(NEWS):
         text = f"*{n['title']}*\n\n{n['text']}"
 
-        if n["link"]:
+        if n.get("link"):
             text += f"\n\n🔗 {n['link']}"
 
-        if n["photo"]:
-            await update.message.reply_photo(
+        if n.get("photo"):
+            await msg.reply_photo(
                 n["photo"],
                 caption=text,
                 parse_mode="Markdown"
             )
         else:
-            await update.message.reply_text(
+            await msg.reply_text(
                 text,
                 parse_mode="Markdown"
             )
@@ -57,7 +51,10 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=NEWS_ACTIONS_KB
         )
     else:
-        await msg.reply_text(text, reply_markup=NEWS_ACTIONS_KB)
+        await msg.reply_text(
+            text,
+            reply_markup=NEWS_ACTIONS_KB
+        )
 
 
 # ───────── ГЛАВНЫЙ FLOW ─────────
@@ -72,66 +69,92 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
-        db_add_news(
-            context.user_data["title"],
-            context.user_data["text"],
-            context.user_data.get("photo"),
-            context.user_data.get("link")
-        )
+        item = {
+            "id": len(NEWS) + 1,
+            "title": context.user_data.get("title"),
+            "text": context.user_data.get("text"),
+            "photo": context.user_data.get("photo"),
+            "link": context.user_data.get("link"),
+        }
 
+        NEWS.append(item)
         context.user_data.clear()
-        await msg.reply_text("✅ Новость опубликована", reply_markup=main_menu(is_admin))
+
+        await msg.reply_text(
+            "✅ Новость опубликована",
+            reply_markup=main_menu(is_admin)
+        )
         return True
 
     # ───── ОТМЕНА ─────
     if text == "❌ Отмена":
         context.user_data.clear()
-        await msg.reply_text("❌ Отменено", reply_markup=main_menu(is_admin))
+        await msg.reply_text(
+            "❌ Отменено",
+            reply_markup=main_menu(is_admin)
+        )
         return True
 
-    # ───── РЕДАКТИРОВАНИЕ ─────
+    # ───── РЕДАКТИРОВАТЬ ─────
     if text == "✏ Редактировать новость":
-        news = db_get_news()
-        for n in news:
+        if not NEWS:
+            await msg.reply_text("Новостей нет")
+            return True
+
+        for n in NEWS:
             await msg.reply_text(f"{n['id']}. {n['title']}")
 
         context.user_data["admin_mode"] = "edit_select"
         return True
 
+    # ───── УДАЛИТЬ ─────
+    if text == "🗑 Удалить новость":
+        if not NEWS:
+            await msg.reply_text("Новостей нет")
+            return True
+
+        for n in NEWS:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "delete_select"
+        return True
+
     # ───── ВЫБОР ID ─────
-    if context.user_data.get("admin_mode") == "edit_select":
-        nid = int(text)
-        item = db_get_news_by_id(nid)
+    if context.user_data.get("admin_mode"):
+        try:
+            nid = int(text)
+        except:
+            return True
 
-        context.user_data["edit_id"] = nid
-        context.user_data["admin_mode"] = "editing"
+        item = next((x for x in NEWS if x["id"] == nid), None)
+        if not item:
+            await msg.reply_text("Новость не найдена")
+            return True
 
-        await msg.reply_text("Что редактировать?", reply_markup=NEWS_EDIT_KB)
-        return True
+        mode = context.user_data["admin_mode"]
 
-    # ───── ЧТО РЕДАКТИРОВАТЬ ─────
+        if mode == "delete_select":
+            NEWS.remove(item)
+            context.user_data.clear()
+            await msg.reply_text("🗑 Удалено", reply_markup=main_menu(is_admin))
+            return True
+
+        if mode == "edit_select":
+            context.user_data["edit_item"] = item
+            context.user_data["admin_mode"] = "editing"
+            await msg.reply_text("Введите новый текст:")
+            return True
+
+    # ───── РЕДАКТИРОВАНИЕ ─────
     if context.user_data.get("admin_mode") == "editing":
-        context.user_data["edit_field"] = text
-        context.user_data["admin_mode"] = "editing_value"
-        await msg.reply_text("Введите новое значение:")
-        return True
-
-    # ───── НОВОЕ ЗНАЧЕНИЕ ─────
-    if context.user_data.get("admin_mode") == "editing_value":
-        field_map = {
-            "Заголовок": "title",
-            "Описание": "text",
-            "Ссылка": "link"
-        }
-
-        db_update_news(
-            context.user_data["edit_id"],
-            field_map[context.user_data["edit_field"]],
-            text
-        )
-
+        item = context.user_data["edit_item"]
+        item["text"] = text
         context.user_data.clear()
-        await msg.reply_text("✅ Обновлено", reply_markup=main_menu(is_admin))
+
+        await msg.reply_text(
+            "✏ Изменено",
+            reply_markup=main_menu(is_admin)
+        )
         return True
 
     # ───── СОЗДАНИЕ НОВОСТИ ─────
