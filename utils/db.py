@@ -1,23 +1,21 @@
-import sqlite3
+import os
+import psycopg2
 from datetime import datetime
 
-DB = "storage/bot.db"
+DB_URL = os.getenv("DATABASE_URL")
 
 
-# ───────── СОЕДИНЕНИЕ ─────────
 def get_conn():
-    return sqlite3.connect(DB)
+    return psycopg2.connect(DB_URL)
 
 
-# ───────── ИНИЦИАЛИЗАЦИЯ БД ─────────
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
-    # НОВОСТИ
     cur.execute("""
         CREATE TABLE IF NOT EXISTS news (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             title TEXT,
             text TEXT,
             photo TEXT,
@@ -26,10 +24,9 @@ def init_db():
         )
     """)
 
-    # ПОДПИСЧИКИ
     cur.execute("""
         CREATE TABLE IF NOT EXISTS subscribers (
-            user_id INTEGER PRIMARY KEY
+            user_id BIGINT PRIMARY KEY
         )
     """)
 
@@ -45,14 +42,8 @@ def db_add_news(title, text, photo=None, link=None):
 
     cur.execute("""
         INSERT INTO news (title, text, photo, link, date)
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        title,
-        text,
-        photo,
-        link,
-        datetime.now().strftime("%Y-%m-%d")
-    ))
+        VALUES (%s, %s, %s, %s, %s)
+    """, (title, text, photo, link, datetime.now().strftime("%Y-%m-%d")))
 
     conn.commit()
     conn.close()
@@ -73,7 +64,7 @@ def db_get_news_by_id(nid):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM news WHERE id = ?", (nid,))
+    cur.execute("SELECT * FROM news WHERE id=%s", (nid,))
     row = cur.fetchone()
     conn.close()
 
@@ -84,7 +75,7 @@ def db_delete_news(nid):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("DELETE FROM news WHERE id = ?", (nid,))
+    cur.execute("DELETE FROM news WHERE id=%s", (nid,))
     conn.commit()
     conn.close()
 
@@ -93,14 +84,7 @@ def db_update_news(nid, field, value):
     conn = get_conn()
     cur = conn.cursor()
 
-    # защита от кривых полей
-    if field not in ["title", "text", "photo", "link", "date"]:
-        conn.close()
-        return
-
-    query = f"UPDATE news SET {field} = ? WHERE id = ?"
-    cur.execute(query, (value, nid))
-
+    cur.execute(f"UPDATE news SET {field}=%s WHERE id=%s", (value, nid))
     conn.commit()
     conn.close()
 
@@ -111,11 +95,7 @@ def db_add_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        "INSERT OR IGNORE INTO subscribers (user_id) VALUES (?)",
-        (user_id,)
-    )
-
+    cur.execute("INSERT INTO subscribers VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
     conn.commit()
     conn.close()
 
@@ -124,28 +104,11 @@ def db_remove_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        "DELETE FROM subscribers WHERE user_id = ?",
-        (user_id,)
-    )
-
+    cur.execute("DELETE FROM subscribers WHERE user_id=%s", (user_id,))
     conn.commit()
     conn.close()
 
 
-def db_get_subs():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT user_id FROM subscribers")
-    rows = cur.fetchall()
-    conn.close()
-
-    return [r[0] for r in rows]
-
-
-# ───────── ВАЖНО ─────────
-# ЭТА ФУНКЦИЯ НУЖНА ДЛЯ handlers/news.py
 def db_get_subscribers():
     conn = get_conn()
     cur = conn.cursor()
