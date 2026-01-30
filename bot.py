@@ -12,16 +12,16 @@ from utils.db import init_db
 
 
 def main():
-    # ───────── БАЗА ДАННЫХ ─────────
+    print("🔧 Инициализация базы...")
     init_db()
 
-    # ───────── ПРИЛОЖЕНИЕ ─────────
+    print("🤖 Запуск бота...")
     app = Application.builder().token(TOKEN).build()
 
-    # ───────── /START ─────────
+    # /start
     app.add_handler(CommandHandler("start", start))
 
-    # ───────── ВСЕ СООБЩЕНИЯ ─────────
+    # ВСЕ сообщения кроме команд
     app.add_handler(
         MessageHandler(
             filters.ALL & ~filters.COMMAND,
@@ -29,11 +29,9 @@ def main():
         )
     )
 
-    print("🚀 Bot started...")
+    print("🚀 Bot started!")
 
-    # ───────── ЗАПУСК ─────────
     app.run_polling(
-        allowed_updates=None,
         drop_pending_updates=True
     )
 
