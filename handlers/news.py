@@ -1,6 +1,8 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
+from keyboards.main import main_menu
+from config import ADMIN_CHAT_ID
 
 from utils.db import (
     db_add_news,
@@ -96,6 +98,8 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return False
 
     text = msg.text or ""
+    user_id = update.effective_user.id
+    is_admin = user_id == ADMIN_CHAT_ID
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
@@ -111,13 +115,19 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_add_news(title, text_news, photo, link)
 
         context.user_data.clear()
-        await msg.reply_text("✅ Новость опубликована")
+        await msg.reply_text(
+            "✅ Новость опубликована",
+            reply_markup=main_menu(is_admin)
+        )
         return True
 
     # ───── ОТМЕНА ─────
     if text == "❌ Отмена":
         context.user_data.clear()
-        await msg.reply_text("❌ Отменено")
+        await msg.reply_text(
+            "❌ Добавление новости отменено",
+            reply_markup=main_menu(is_admin)
+        )
         return True
 
     # ───── АДМИН: РЕДАКТИРОВАТЬ ─────
@@ -175,20 +185,29 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if mode == "delete_select":
             db_delete_news(nid)
-            await msg.reply_text("🗑 Удалено")
             context.user_data.clear()
+            await msg.reply_text(
+                "🗑 Удалено",
+                reply_markup=main_menu(is_admin)
+            )
             return True
 
         if mode == "broadcast_select":
             await broadcast_news(context, item)
-            await msg.reply_text("📨 Разослано")
             context.user_data.clear()
+            await msg.reply_text(
+                "📨 Разослано",
+                reply_markup=main_menu(is_admin)
+            )
             return True
 
         if mode == "edit_select":
             context.user_data["edit_item"] = item
             context.user_data["admin_mode"] = "editing"
-            await msg.reply_text("Что редактировать?", reply_markup=NEWS_EDIT_KB)
+            await msg.reply_text(
+                "Что редактировать?",
+                reply_markup=NEWS_EDIT_KB
+            )
             return True
 
     # ───── СОЗДАНИЕ НОВОСТИ ─────
