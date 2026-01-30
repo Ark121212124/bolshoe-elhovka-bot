@@ -13,7 +13,6 @@ from utils.db import (
     db_get_subscribers,
 )
 
-
 # ───────────── ПОКАЗ НОВОСТЕЙ ─────────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = db_get_news()
@@ -45,7 +44,6 @@ async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
 
-
 # ───────────── ПРЕДПРОСМОТР ─────────────
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -66,7 +64,6 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text,
             reply_markup=NEWS_ACTIONS_KB
         )
-
 
 # ───────────── РАССЫЛКА ─────────────
 async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
@@ -89,7 +86,6 @@ async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
                 await context.bot.send_message(uid, text)
         except:
             pass
-
 
 # ───────────── ГЛАВНЫЙ FLOW ─────────────
 async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,6 +122,62 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await msg.reply_text(
             "❌ Добавление новости отменено",
+            reply_markup=main_menu(is_admin)
+        )
+        return True
+
+    # ───── ВЫБОР ПОЛЯ РЕДАКТИРОВАНИЯ ─────
+    if text == "Заголовок":
+        context.user_data["edit_field"] = "title"
+        await msg.reply_text("Введите новый заголовок:")
+        return True
+
+    if text == "Описание":
+        context.user_data["edit_field"] = "text"
+        await msg.reply_text("Введите новое описание:")
+        return True
+
+    if text == "Ссылка":
+        context.user_data["edit_field"] = "link"
+        await msg.reply_text("Введите новую ссылку:")
+        return True
+
+    if text == "Фото":
+        context.user_data["edit_field"] = "photo"
+        await msg.reply_text("Отправьте новое фото:")
+        return True
+
+    # ───── РЕЖИМ РЕДАКТИРОВАНИЯ ─────
+    if context.user_data.get("admin_mode") == "editing":
+        field = context.user_data.get("edit_field")
+        item = context.user_data.get("edit_item")
+
+        if not field or not item:
+            return True
+
+        nid = item["id"]
+
+        if field == "title":
+            db_update_news(nid, "title", text)
+            await msg.reply_text("Заголовок обновлён")
+
+        elif field == "text":
+            db_update_news(nid, "text", text)
+            await msg.reply_text("Описание обновлено")
+
+        elif field == "link":
+            db_update_news(nid, "link", text)
+            await msg.reply_text("Ссылка обновлена")
+
+        elif field == "photo":
+            if msg.photo:
+                file_id = msg.photo[-1].file_id
+                db_update_news(nid, "photo", file_id)
+                await msg.reply_text("Фото обновлено")
+
+        context.user_data.clear()
+        await msg.reply_text(
+            "Изменения сохранены",
             reply_markup=main_menu(is_admin)
         )
         return True
