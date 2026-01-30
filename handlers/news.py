@@ -1,4 +1,3 @@
-from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
@@ -22,7 +21,10 @@ async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     for n in rows:
-        nid, title, text_news, photo, link, date = n
+        title = n["title"]
+        text_news = n["text"]
+        photo = n["photo"]
+        link = n["link"]
 
         text = f"*{title}*\n\n{text_news}"
 
@@ -68,7 +70,10 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
     subs = db_get_subscribers()
 
-    nid, title, text_news, photo, link, date = item
+    title = item["title"]
+    text_news = item["text"]
+    photo = item["photo"]
+    link = item["link"]
 
     text = f"{title}\n\n{text_news}"
     if link:
@@ -123,7 +128,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return True
 
         for n in news:
-            await msg.reply_text(f"{n[0]}. {n[1]}")
+            await msg.reply_text(f"{n['id']}. {n['title']}")
 
         context.user_data["admin_mode"] = "edit_select"
         return True
@@ -131,8 +136,12 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ───── АДМИН: УДАЛИТЬ ─────
     if text == "🗑 Удалить новость":
         news = db_get_news()
+        if not news:
+            await msg.reply_text("Новостей нет")
+            return True
+
         for n in news:
-            await msg.reply_text(f"{n[0]}. {n[1]}")
+            await msg.reply_text(f"{n['id']}. {n['title']}")
 
         context.user_data["admin_mode"] = "delete_select"
         return True
@@ -140,8 +149,12 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ───── АДМИН: РАССЫЛКА ─────
     if text == "📨 Разослать новость":
         news = db_get_news()
+        if not news:
+            await msg.reply_text("Новостей нет")
+            return True
+
         for n in news:
-            await msg.reply_text(f"{n[0]}. {n[1]}")
+            await msg.reply_text(f"{n['id']}. {n['title']}")
 
         context.user_data["admin_mode"] = "broadcast_select"
         return True
