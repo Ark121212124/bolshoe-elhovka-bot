@@ -4,10 +4,12 @@ from datetime import datetime
 DB = "storage/bot.db"
 
 
+# ───────── СОЕДИНЕНИЕ ─────────
 def get_conn():
     return sqlite3.connect(DB)
 
 
+# ───────── ИНИЦИАЛИЗАЦИЯ БД ─────────
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
@@ -44,7 +46,13 @@ def db_add_news(title, text, photo=None, link=None):
     cur.execute("""
         INSERT INTO news (title, text, photo, link, date)
         VALUES (?, ?, ?, ?, ?)
-    """, (title, text, photo, link, datetime.now().strftime("%Y-%m-%d")))
+    """, (
+        title,
+        text,
+        photo,
+        link,
+        datetime.now().strftime("%Y-%m-%d")
+    ))
 
     conn.commit()
     conn.close()
@@ -85,6 +93,11 @@ def db_update_news(nid, field, value):
     conn = get_conn()
     cur = conn.cursor()
 
+    # защита от кривых полей
+    if field not in ["title", "text", "photo", "link", "date"]:
+        conn.close()
+        return
+
     query = f"UPDATE news SET {field} = ? WHERE id = ?"
     cur.execute(query, (value, nid))
 
@@ -98,7 +111,11 @@ def db_add_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("INSERT OR IGNORE INTO subscribers VALUES (?)", (user_id,))
+    cur.execute(
+        "INSERT OR IGNORE INTO subscribers (user_id) VALUES (?)",
+        (user_id,)
+    )
+
     conn.commit()
     conn.close()
 
@@ -107,12 +124,29 @@ def db_remove_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("DELETE FROM subscribers WHERE user_id = ?", (user_id,))
+    cur.execute(
+        "DELETE FROM subscribers WHERE user_id = ?",
+        (user_id,)
+    )
+
     conn.commit()
     conn.close()
 
 
 def db_get_subs():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("SELECT user_id FROM subscribers")
+    rows = cur.fetchall()
+    conn.close()
+
+    return [r[0] for r in rows]
+
+
+# ───────── ВАЖНО ─────────
+# ЭТА ФУНКЦИЯ НУЖНА ДЛЯ handlers/news.py
+def db_get_subscribers():
     conn = get_conn()
     cur = conn.cursor()
 
