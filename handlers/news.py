@@ -15,21 +15,23 @@ from utils.db import (
 
 # ───────────── ПОКАЗ НОВОСТЕЙ ─────────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    news = db_get_news()
+    rows = db_get_news()
 
-    if not news:
+    if not rows:
         await update.message.reply_text("📰 Пока новостей нет.")
         return
 
-    for n in news:
-        text = f"*{n['title']}*\n\n{n['text']}"
+    for n in rows:
+        nid, title, text_news, photo, link, date = n
 
-        if n["link"]:
-            text += f"\n\n🔗 {n['link']}"
+        text = f"*{title}*\n\n{text_news}"
 
-        if n["photo"]:
+        if link:
+            text += f"\n\n🔗 {link}"
+
+        if photo:
             await update.message.reply_photo(
-                n["photo"],
+                photo,
                 caption=text,
                 parse_mode="Markdown"
             )
@@ -66,14 +68,16 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
     subs = db_get_subscribers()
 
-    text = f"{item['title']}\n\n{item['text']}"
-    if item["link"]:
-        text += f"\n{item['link']}"
+    nid, title, text_news, photo, link, date = item
+
+    text = f"{title}\n\n{text_news}"
+    if link:
+        text += f"\n{link}"
 
     for uid in subs:
         try:
-            if item["photo"]:
-                await context.bot.send_photo(uid, item["photo"], caption=text)
+            if photo:
+                await context.bot.send_photo(uid, photo, caption=text)
             else:
                 await context.bot.send_message(uid, text)
         except:
@@ -90,13 +94,16 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
-        db_add_news(
-            context.user_data["title"],
-            context.user_data["text"],
-            context.user_data.get("photo"),
-            context.user_data.get("link"),
-            datetime.now().strftime("%Y-%m-%d")
-        )
+        title = context.user_data.get("title")
+        text_news = context.user_data.get("text")
+        photo = context.user_data.get("photo")
+        link = context.user_data.get("link")
+
+        if not title or not text_news:
+            await msg.reply_text("Ошибка публикации")
+            return True
+
+        db_add_news(title, text_news, photo, link)
 
         context.user_data.clear()
         await msg.reply_text("✅ Новость опубликована")
@@ -116,7 +123,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return True
 
         for n in news:
-            await msg.reply_text(f"{n['id']}. {n['title']}")
+            await msg.reply_text(f"{n[0]}. {n[1]}")
 
         context.user_data["admin_mode"] = "edit_select"
         return True
@@ -125,7 +132,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "🗑 Удалить новость":
         news = db_get_news()
         for n in news:
-            await msg.reply_text(f"{n['id']}. {n['title']}")
+            await msg.reply_text(f"{n[0]}. {n[1]}")
 
         context.user_data["admin_mode"] = "delete_select"
         return True
@@ -134,7 +141,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "📨 Разослать новость":
         news = db_get_news()
         for n in news:
-            await msg.reply_text(f"{n['id']}. {n['title']}")
+            await msg.reply_text(f"{n[0]}. {n[1]}")
 
         context.user_data["admin_mode"] = "broadcast_select"
         return True
