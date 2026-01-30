@@ -1,6 +1,8 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-from utils.db import get_conn
+
+# ВРЕМЕННОЕ ХРАНИЛИЩЕ ПОДПИСЧИКОВ В ПАМЯТИ
+SUBSCRIBERS = set()
 
 SUB_MENU = ReplyKeyboardMarkup(
     [
@@ -17,8 +19,7 @@ async def subscriptions_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["subs_mode"] = True
 
     await update.message.reply_text(
-        "🔔 *Оповещения*\n\nВыберите действие:",
-        parse_mode="Markdown",
+        "🔔 Оповещения\n\nВыберите действие:",
         reply_markup=SUB_MENU
     )
 
@@ -30,27 +31,21 @@ async def subscriptions_text_handler(update: Update, context: ContextTypes.DEFAU
     text = update.message.text
     uid = update.effective_user.id
 
-    conn = get_conn()
-    cur = conn.cursor()
-
+    # НАЗАД
     if text == "🔙 Назад":
         context.user_data.clear()
-        conn.close()
         return False
 
+    # ПОДПИСКА
     if text == "🔔 Подписаться":
-        cur.execute("INSERT OR IGNORE INTO subscribers VALUES (?)", (uid,))
-        conn.commit()
+        SUBSCRIBERS.add(uid)
         await update.message.reply_text("✅ Вы подписались на новости")
-        conn.close()
         return True
 
+    # ОТПИСКА
     if text == "🔕 Отписаться":
-        cur.execute("DELETE FROM subscribers WHERE id=?", (uid,))
-        conn.commit()
+        SUBSCRIBERS.discard(uid)
         await update.message.reply_text("❌ Вы отписались от новостей")
-        conn.close()
         return True
 
-    conn.close()
     return True
