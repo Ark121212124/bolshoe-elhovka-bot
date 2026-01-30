@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from datetime import datetime
 
 DB_PATH = "bot.db"
@@ -7,7 +6,7 @@ DB_PATH = "bot.db"
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row  # можно обращаться как row["title"]
     return conn
 
 
@@ -15,6 +14,7 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
+    # ───── НОВОСТИ ─────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS news (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,6 +26,7 @@ def init_db():
         )
     """)
 
+    # ───── ПОДПИСЧИКИ ─────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS subscribers (
             user_id INTEGER PRIMARY KEY
@@ -45,7 +46,13 @@ def db_add_news(title, text, photo=None, link=None):
     cur.execute("""
         INSERT INTO news (title, text, photo, link, date)
         VALUES (?, ?, ?, ?, ?)
-    """, (title, text, photo, link, datetime.now().strftime("%Y-%m-%d")))
+    """, (
+        title,
+        text,
+        photo,
+        link,
+        datetime.now().strftime("%Y-%m-%d %H:%M")
+    ))
 
     conn.commit()
     conn.close()
@@ -86,8 +93,10 @@ def db_update_news(nid, field, value):
     conn = get_conn()
     cur = conn.cursor()
 
-    query = f"UPDATE news SET {field} = ? WHERE id = ?"
-    cur.execute(query, (value, nid))
+    cur.execute(
+        f"UPDATE news SET {field} = ? WHERE id = ?",
+        (value, nid)
+    )
 
     conn.commit()
     conn.close()
@@ -99,7 +108,24 @@ def db_add_sub(user_id):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("INSERT OR IGNORE INTO subscribers VALUES (?)", (user_id,))
+    cur.execute(
+        "INSERT OR IGNORE INTO subscribers (user_id) VALUES (?)",
+        (user_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def db_remove_sub(user_id):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "DELETE FROM subscribers WHERE user_id = ?",
+        (user_id,)
+    )
+
     conn.commit()
     conn.close()
 
@@ -112,4 +138,4 @@ def db_get_subscribers():
     rows = cur.fetchall()
     conn.close()
 
-    return [r[0] for r in rows]
+    return [r["user_id"] for r in rows]
