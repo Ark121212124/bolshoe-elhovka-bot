@@ -24,52 +24,51 @@ async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for n in rows:
         text = f"*{n['title']}*\n\n{n['text']}"
+
         if n["link"]:
             text += f"\n\n🔗 {n['link']}"
 
         if n["photo"]:
-            await update.message.reply_photo(n["photo"], caption=text, parse_mode="Markdown")
+            await update.message.reply_photo(
+                n["photo"],
+                caption=text,
+                parse_mode="Markdown"
+            )
         else:
-            await update.message.reply_text(text, parse_mode="Markdown")
+            await update.message.reply_text(
+                text,
+                parse_mode="Markdown"
+            )
 
 
 # ───────── ПРЕДПРОСМОТР ─────────
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+
     text = f"📰 Предпросмотр\n\n{context.user_data['title']}\n\n{context.user_data['text']}"
 
     if context.user_data.get("link"):
         text += f"\n\n🔗 {context.user_data['link']}"
 
     if context.user_data.get("photo"):
-        await msg.reply_photo(context.user_data["photo"], caption=text, reply_markup=NEWS_ACTIONS_KB)
+        await msg.reply_photo(
+            context.user_data["photo"],
+            caption=text,
+            reply_markup=NEWS_ACTIONS_KB
+        )
     else:
         await msg.reply_text(text, reply_markup=NEWS_ACTIONS_KB)
 
 
-# ───────── РАССЫЛКА ─────────
-async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
-    subs = db_get_subscribers()
-    text = f"{item['title']}\n\n{item['text']}"
-
-    for uid in subs:
-        try:
-            if item["photo"]:
-                await context.bot.send_photo(uid, item["photo"], caption=text)
-            else:
-                await context.bot.send_message(uid, text)
-        except:
-            pass
-
-
-# ───────── FLOW ─────────
+# ───────── ГЛАВНЫЙ FLOW ─────────
 async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg:
         return False
 
     text = msg.text or ""
-    is_admin = update.effective_user.id == ADMIN_CHAT_ID
+    user_id = update.effective_user.id
+    is_admin = user_id == ADMIN_CHAT_ID
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
@@ -79,6 +78,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.get("photo"),
             context.user_data.get("link")
         )
+
         context.user_data.clear()
         await msg.reply_text("✅ Новость опубликована", reply_markup=main_menu(is_admin))
         return True
@@ -90,23 +90,48 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return True
 
     # ───── РЕДАКТИРОВАНИЕ ─────
-    if context.user_data.get("admin_mode") == "editing":
-        field = context.user_data["edit_field"]
-        item = context.user_data["edit_item"]
-        db_update_news(item["id"], field, text)
-        context.user_data.clear()
-        await msg.reply_text("Обновлено", reply_markup=main_menu(is_admin))
+    if text == "✏ Редактировать новость":
+        news = db_get_news()
+        for n in news:
+            await msg.reply_text(f"{n['id']}. {n['title']}")
+
+        context.user_data["admin_mode"] = "edit_select"
         return True
 
-    # ───── ВЫБОР ПОЛЯ ─────
-    if text == "Заголовок":
-        context.user_data["edit_field"] = "title"
+    # ───── ВЫБОР ID ─────
+    if context.user_data.get("admin_mode") == "edit_select":
+        nid = int(text)
+        item = db_get_news_by_id(nid)
+
+        context.user_data["edit_id"] = nid
+        context.user_data["admin_mode"] = "editing"
+
+        await msg.reply_text("Что редактировать?", reply_markup=NEWS_EDIT_KB)
         return True
-    if text == "Описание":
-        context.user_data["edit_field"] = "text"
+
+    # ───── ЧТО РЕДАКТИРОВАТЬ ─────
+    if context.user_data.get("admin_mode") == "editing":
+        context.user_data["edit_field"] = text
+        context.user_data["admin_mode"] = "editing_value"
+        await msg.reply_text("Введите новое значение:")
         return True
-    if text == "Ссылка":
-        context.user_data["edit_field"] = "link"
+
+    # ───── НОВОЕ ЗНАЧЕНИЕ ─────
+    if context.user_data.get("admin_mode") == "editing_value":
+        field_map = {
+            "Заголовок": "title",
+            "Описание": "text",
+            "Ссылка": "link"
+        }
+
+        db_update_news(
+            context.user_data["edit_id"],
+            field_map[context.user_data["edit_field"]],
+            text
+        )
+
+        context.user_data.clear()
+        await msg.reply_text("✅ Обновлено", reply_markup=main_menu(is_admin))
         return True
 
     # ───── СОЗДАНИЕ НОВОСТИ ─────
@@ -121,14 +146,14 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if step == "text":
         context.user_data["text"] = text
         context.user_data["news_step"] = "photo"
-        await msg.reply_text("Фото или -")
+        await msg.reply_text("Отправьте фото или -")
         return True
 
     if step == "photo":
         if msg.photo:
             context.user_data["photo"] = msg.photo[-1].file_id
         context.user_data["news_step"] = "link"
-        await msg.reply_text("Ссылка или -")
+        await msg.reply_text("Введите ссылку или -")
         return True
 
     if step == "link":
