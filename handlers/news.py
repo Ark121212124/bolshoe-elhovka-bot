@@ -1,87 +1,78 @@
-import json
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 from keyboards.news import NEWS_ACTIONS_KB, NEWS_EDIT_KB
 
-FILE = "storage/news.json"
-SUB_FILE = "storage/subscribers.json"
-
-
-# ───────────── ФАЙЛЫ ─────────────
-def load_news():
-    try:
-        with open(FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                return data
-            return []   # если вдруг объект — очищаем
-    except:
-        return []
-
-
-def save_news(data):
-    with open(FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def next_id(news):
-    if not news:
-        return 1
-    return max(n["id"] for n in news) + 1
-
-
-def load_subs():
-    try:
-        with open(SUB_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+from utils.db import (
+    db_add_news,
+    db_get_news,
+    db_get_news_by_id,
+    db_delete_news,
+    db_update_news,
+    db_get_subscribers,
+)
 
 
 # ───────────── ПОКАЗ НОВОСТЕЙ ─────────────
 async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    news = load_news()
+    news = db_get_news()
+
     if not news:
         await update.message.reply_text("📰 Пока новостей нет.")
         return
 
     for n in news:
         text = f"*{n['title']}*\n\n{n['text']}"
-        if n.get("link"):
+
+        if n["link"]:
             text += f"\n\n🔗 {n['link']}"
 
-        if n.get("photo"):
-            await update.message.reply_photo(n["photo"], caption=text, parse_mode="Markdown")
+        if n["photo"]:
+            await update.message.reply_photo(
+                n["photo"],
+                caption=text,
+                parse_mode="Markdown"
+            )
         else:
-            await update.message.reply_text(text, parse_mode="Markdown")
+            await update.message.reply_text(
+                text,
+                parse_mode="Markdown"
+            )
 
 
 # ───────────── ПРЕДПРОСМОТР ─────────────
-async def show_preview(update, context):
+async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+
     text = f"📰 Предпросмотр\n\n{context.user_data['title']}\n\n{context.user_data['text']}"
 
     if context.user_data.get("link"):
         text += f"\n\n🔗 {context.user_data['link']}"
 
     if context.user_data.get("photo"):
-        await msg.reply_photo(context.user_data["photo"], caption=text, reply_markup=NEWS_ACTIONS_KB)
+        await msg.reply_photo(
+            context.user_data["photo"],
+            caption=text,
+            reply_markup=NEWS_ACTIONS_KB
+        )
     else:
-        await msg.reply_text(text, reply_markup=NEWS_ACTIONS_KB)
+        await msg.reply_text(
+            text,
+            reply_markup=NEWS_ACTIONS_KB
+        )
 
 
 # ───────────── РАССЫЛКА ─────────────
-async def broadcast_news(context, item):
-    subs = load_subs()
-    text = f"{item['title']}\n\n{item['text']}"
+async def broadcast_news(context: ContextTypes.DEFAULT_TYPE, item):
+    subs = db_get_subscribers()
 
-    if item.get("link"):
+    text = f"{item['title']}\n\n{item['text']}"
+    if item["link"]:
         text += f"\n{item['link']}"
 
     for uid in subs:
         try:
-            if item.get("photo"):
+            if item["photo"]:
                 await context.bot.send_photo(uid, item["photo"], caption=text)
             else:
                 await context.bot.send_message(uid, text)
@@ -99,31 +90,27 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ───── ПУБЛИКАЦИЯ ─────
     if text == "✅ Опубликовать":
-        news = load_news()
+        db_add_news(
+            context.user_data["title"],
+            context.user_data["text"],
+            context.user_data.get("photo"),
+            context.user_data.get("link"),
+            datetime.now().strftime("%Y-%m-%d")
+        )
 
-        item = {
-            "id": next_id(news),
-            "title": context.user_data["title"],
-            "text": context.user_data["text"],
-            "photo": context.user_data.get("photo"),
-            "link": context.user_data.get("link"),
-            "date": datetime.now().strftime("%Y-%m-%d")
-        }
-
-        news.append(item)
-        save_news(news)
         context.user_data.clear()
         await msg.reply_text("✅ Новость опубликована")
         return True
 
+    # ───── ОТМЕНА ─────
     if text == "❌ Отмена":
         context.user_data.clear()
         await msg.reply_text("❌ Отменено")
         return True
 
-    # ───── АДМИН МЕНЮ ─────
+    # ───── АДМИН: РЕДАКТИРОВАТЬ ─────
     if text == "✏ Редактировать новость":
-        news = load_news()
+        news = db_get_news()
         if not news:
             await msg.reply_text("Новостей нет")
             return True
@@ -134,16 +121,18 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["admin_mode"] = "edit_select"
         return True
 
+    # ───── АДМИН: УДАЛИТЬ ─────
     if text == "🗑 Удалить новость":
-        news = load_news()
+        news = db_get_news()
         for n in news:
             await msg.reply_text(f"{n['id']}. {n['title']}")
 
         context.user_data["admin_mode"] = "delete_select"
         return True
 
+    # ───── АДМИН: РАССЫЛКА ─────
     if text == "📨 Разослать новость":
-        news = load_news()
+        news = db_get_news()
         for n in news:
             await msg.reply_text(f"{n['id']}. {n['title']}")
 
@@ -152,14 +141,12 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ───── ВЫБОР ID ─────
     if context.user_data.get("admin_mode"):
-        news = load_news()
-
         try:
             nid = int(text)
         except:
             return True
 
-        item = next((n for n in news if n["id"] == nid), None)
+        item = db_get_news_by_id(nid)
         if not item:
             await msg.reply_text("Новость не найдена")
             return True
@@ -167,8 +154,7 @@ async def handle_news_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mode = context.user_data["admin_mode"]
 
         if mode == "delete_select":
-            news = [n for n in news if n["id"] != nid]
-            save_news(news)
+            db_delete_news(nid)
             await msg.reply_text("🗑 Удалено")
             context.user_data.clear()
             return True
