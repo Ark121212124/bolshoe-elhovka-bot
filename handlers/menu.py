@@ -13,11 +13,15 @@ from config import ADMIN_CHAT_ID
 
 
 async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg:
+        return
+
     user_id = update.effective_user.id
     is_admin = user_id == ADMIN_CHAT_ID
-    text = update.message.text if update.message else ""
+    text = msg.text or ""
 
-    # ───── ВСЕГДА СНАЧАЛА ДИАЛОГИ ─────
+    # ───────── ДИАЛОГИ (ВСЕГДА ПЕРВЫЕ) ─────────
     if await handle_news_flow(update, context):
         return
 
@@ -30,16 +34,17 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await subscriptions_text_handler(update, context):
         return
 
-    # ───── ГЛАВНОЕ МЕНЮ ─────
+    # ───────── ГЛАВНЫЕ КНОПКИ ─────────
 
+    # НОВОСТИ
     if text == "📰 Новости":
         await show_news(update, context)
         return
 
-    # АДМИН ПАНЕЛЬ
+    # ───── АДМИН ПАНЕЛЬ ─────
     if text == "🛠 Управление новостями" and is_admin:
-        await update.message.reply_text(
-            "Управление новостями:",
+        await msg.reply_text(
+            "🛠 Управление новостями:",
             reply_markup=NEWS_ADMIN_KB
         )
         return
@@ -47,9 +52,10 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "➕ Добавить новость" and is_admin:
         context.user_data.clear()
         context.user_data["news_step"] = "title"
-        await update.message.reply_text("📝 Введите заголовок новости:")
+        await msg.reply_text("📝 Введите заголовок новости:")
         return
 
+    # ───── ОБЫЧНЫЕ РАЗДЕЛЫ ─────
     if text == "📞 Контакты":
         await show_contacts(update, context)
         return
@@ -62,16 +68,17 @@ async def text_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await subscriptions_menu(update, context)
         return
 
+    # ───── НАЗАД В МЕНЮ ─────
     if text == "🔙 В меню":
         context.user_data.clear()
-        await update.message.reply_text(
+        await msg.reply_text(
             "🏛 Главное меню",
             reply_markup=main_menu(is_admin)
         )
         return
 
-    # ЕСЛИ НАПИСАЛИ ЧТО-ТО ЛЕВОЕ
-    await update.message.reply_text(
+    # ───── ЕСЛИ ЧТО-ТО НЕПОНЯТНОЕ ─────
+    await msg.reply_text(
         "Пожалуйста, выберите пункт меню 👇",
         reply_markup=main_menu(is_admin)
     )
